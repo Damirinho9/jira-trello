@@ -16,6 +16,62 @@ const filterProjectEl = document.getElementById('filterProject');
 const filterSearchEl = document.getElementById('filterSearch');
 const resetFiltersBtn = document.getElementById('resetFilters');
 const activeFiltersEl = document.getElementById('activeFilters');
+const emptyMessageEl = document.getElementById('emptyMessage');
+
+const seedTasks = [
+  {
+    id: createId(),
+    title: 'Разобрать входящие',
+    description: 'Пробежаться по идеям и раскидать в план или в работу',
+    status: 'inbox',
+    priority: 'medium',
+    project: 'Личный',
+    tags: ['входящие'],
+    dueDate: '',
+    comments: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: createId(),
+    title: 'Сделать отчёт',
+    description: 'Собрать главные пункты и отправить',
+    status: 'plan',
+    priority: 'high',
+    project: 'Работа',
+    tags: ['отчёт'],
+    dueDate: '',
+    comments: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: createId(),
+    title: 'Рефакторинг заметок',
+    description: 'Перенести идеи из блокнота в задачи',
+    status: 'in_progress',
+    priority: 'low',
+    project: 'Учёба',
+    tags: ['整理'],
+    dueDate: '',
+    comments: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: createId(),
+    title: 'Добить баг по фильтрам',
+    description: 'Проверить, что поиск и проект подсвечиваются',
+    status: 'done',
+    priority: 'medium',
+    project: 'Личный',
+    tags: ['ui'],
+    dueDate: '',
+    comments: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
 
 function loadTasks() {
   const data = localStorage.getItem(STORAGE_KEY);
@@ -32,6 +88,13 @@ function loadTasks() {
 
 function saveTasks(tasks) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+function initTasks() {
+  const stored = loadTasks();
+  if (stored.length) return stored;
+  saveTasks(seedTasks);
+  return seedTasks;
 }
 
 function createId() {
@@ -160,6 +223,14 @@ function renderActiveFilters(filters) {
 function renderBoard(tasks) {
   const filtered = applyFilters(tasks, state.filters);
   boardEl.innerHTML = '';
+
+  if (!filtered.length) {
+    emptyMessageEl.textContent =
+      'Пока нет задач в выбранных фильтрах — добавьте новую или сбросьте фильтры.';
+  } else {
+    emptyMessageEl.textContent = '';
+  }
+
   statuses.forEach((status) => {
     const template = document.getElementById('column-template');
     const columnEl = template.content.firstElementChild.cloneNode(true);
@@ -257,7 +328,7 @@ function resetFilters() {
 }
 
 const state = {
-  tasks: loadTasks(),
+  tasks: initTasks(),
   filters: { status: 'all', project: '', search: '' },
 };
 
