@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Личный канбан</title>
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>Личный канбан</h1>
+      <p class="subtitle">Минимальный аналог Jira/Trello: быстрый ввод, колонки, сохранение в localStorage.</p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="notice" id="storageNotice" hidden></div>
+
+  <section class="quick-add">
+    <h2>Быстро добавить</h2>
+    <form id="taskForm">
+      <div class="form-row">
+        <input required id="title" name="title" placeholder="Заголовок задачи" />
+        <input id="project" name="project" placeholder="Проект/тег" />
+        <select id="priority" name="priority">
+          <option value="medium">Средний приоритет</option>
+          <option value="high">Высокий</option>
+          <option value="low">Низкий</option>
+        </select>
+        <input id="dueDate" name="dueDate" type="date" />
+      </div>
+      <div class="form-row">
+        <input id="tags" name="tags" placeholder="Теги через запятую" />
+        <textarea id="description" name="description" placeholder="Описание"></textarea>
+      </div>
+      <div class="form-row actions">
+        <button type="submit">Добавить</button>
+        <button type="reset" class="ghost">Очистить</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="filters" id="filters">
+    <h2>Фильтры и поиск</h2>
+    <div class="filter-row">
+      <label>
+        Статус
+        <select id="filterStatus">
+          <option value="all">Все</option>
+          <option value="inbox">Inbox</option>
+          <option value="plan">План</option>
+          <option value="in_progress">В работе</option>
+          <option value="done">Готово</option>
+        </select>
+      </label>
+      <label>
+        Проект
+        <input id="filterProject" placeholder="Название проекта" />
+      </label>
+      <label>
+        Поиск по названию
+        <input id="filterSearch" placeholder="Например: отчет" />
+      </label>
+      <button id="resetFilters" class="ghost" type="button">Сбросить</button>
+    </div>
+    <p class="active-filters" id="activeFilters"></p>
+  </section>
+
+  <section class="storage-tools">
+    <h2>Экспорт / импорт</h2>
+    <div class="tools-grid">
+      <div class="tool-block">
+        <p class="muted">Скачать бэкап задач в JSON.</p>
+        <button id="exportTasks" type="button">Экспортировать JSON</button>
+      </div>
+      <form class="tool-block" id="importForm">
+        <p class="muted">Вставьте JSON с задачами. Выберите режим: заменить всё или слить с текущими.</p>
+        <label class="inline">
+          Режим импорта
+          <select id="importMode" name="mode">
+            <option value="merge">Слить (merge)</option>
+            <option value="replace">Заменить (replace)</option>
+          </select>
+        </label>
+        <textarea id="importInput" name="payload" rows="4" placeholder='[{ "title": "Новая" }]'></textarea>
+        <div class="form-row actions">
+          <button type="submit">Импортировать</button>
+          <button type="reset" class="ghost">Очистить</button>
+        </div>
+        <p class="import-status" id="importStatus"></p>
+      </form>
+    </div>
+  </section>
+
+  <p class="empty-message" id="emptyMessage"></p>
+
+  <main class="board" id="board"></main>
+
+  <template id="column-template">
+    <section class="column">
+      <header class="column-header">
+        <h3 class="column-title"></h3>
+        <span class="count"></span>
+      </header>
+      <div class="column-body"></div>
+    </section>
+  </template>
+
+  <template id="card-template">
+    <article class="card">
+      <div class="card-head">
+        <div>
+          <p class="card-project"></p>
+          <h4 class="card-title"></h4>
+        </div>
+        <span class="badge"></span>
+      </div>
+      <p class="card-desc"></p>
+      <div class="card-meta">
+        <span class="chip priority"></span>
+        <span class="chip due"></span>
+        <span class="chip tags"></span>
+      </div>
+      <div class="card-actions"></div>
+      <details class="comments">
+        <summary>Комментарии</summary>
+        <ul class="comments-list"></ul>
+        <form class="comment-form">
+          <input name="comment" placeholder="Новый комментарий" />
+          <button type="submit">Добавить</button>
+        </form>
+      </details>
+    </article>
+  </template>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
