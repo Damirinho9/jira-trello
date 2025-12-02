@@ -11,6 +11,11 @@ const priorityLabels = { low: 'Низкий', medium: 'Средний', high: '�
 const boardEl = document.getElementById('board');
 const formEl = document.getElementById('taskForm');
 const statsEl = document.getElementById('stats');
+const filterStatusEl = document.getElementById('filterStatus');
+const filterProjectEl = document.getElementById('filterProject');
+const filterSearchEl = document.getElementById('filterSearch');
+const resetFiltersBtn = document.getElementById('resetFilters');
+const activeFiltersEl = document.getElementById('activeFilters');
 
 function loadTasks() {
   const data = localStorage.getItem(STORAGE_KEY);
@@ -39,15 +44,41 @@ function summarize(tasks) {
   return { total, byStatus: Object.fromEntries(byStatus) };
 }
 
-function renderStats(tasks) {
-  const { total, byStatus } = summarize(tasks);
-  const parts = [`Всего: ${total}`].concat(
+function renderStats(allTasks, visibleTasks) {
+  const { total, byStatus } = summarize(visibleTasks);
+  const base = [`На доске: ${total}`].concat(
     statuses.map((s) => `${s.label}: ${byStatus[s.id] || 0}`)
   );
-  statsEl.textContent = parts.join(' · ');
+
+  if (visibleTasks.length !== allTasks.length) {
+    base.unshift(`Всего задач: ${allTasks.length}`);
+  }
+
+  statsEl.textContent = base.join(' · ');
 }
 
-function createCard(task, onUpdateStatus) {
+function renderComments(listEl, comments) {
+  listEl.innerHTML = '';
+  if (!comments.length) {
+    const empty = document.createElement('li');
+    empty.className = 'muted';
+    empty.textContent = 'Комментариев пока нет';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  comments
+    .slice()
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .forEach((comment) => {
+      const li = document.createElement('li');
+      const date = new Date(comment.createdAt).toLocaleString();
+      li.innerHTML = `<span class="comment-date">${date}</span> — ${comment.text}`;
+      listEl.appendChild(li);
+    });
+}
+
+function createCard(task, onUpdateStatus, onAddComment) {
   const template = document.getElementById('card-template');
   const card = template.content.firstElementChild.cloneNode(true);
 
@@ -71,17 +102,70 @@ function createCard(task, onUpdateStatus) {
     actions.appendChild(btn);
   });
 
+  const commentsList = card.querySelector('.comments-list');
+  renderComments(commentsList, task.comments);
+
+  const commentForm = card.querySelector('.comment-form');
+  commentForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const input = commentForm.comment;
+    const text = input.value.trim();
+    if (!text) return;
+    onAddComment(task.id, text);
+    input.value = '';
+  });
+
   return card;
 }
 
+function applyFilters(tasks, filters) {
+  const search = filters.search.toLowerCase();
+  const project = filters.project.toLowerCase();
+
+  return tasks.filter((task) => {
+    const matchesStatus = filters.status === 'all' || task.status === filters.status;
+    const matchesProject = !project || task.project.toLowerCase().includes(project);
+    const matchesSearch = !search || task.title.toLowerCase().includes(search);
+    return matchesStatus && matchesProject && matchesSearch;
+  });
+}
+
+function renderActiveFilters(filters) {
+  const active = [];
+  if (filters.status !== 'all') {
+    const statusLabel = statuses.find((s) => s.id === filters.status)?.label || filters.status;
+    active.push(`Статус: ${statusLabel}`);
+    filterStatusEl.classList.add('active');
+  } else {
+    filterStatusEl.classList.remove('active');
+  }
+
+  if (filters.project.trim()) {
+    active.push(`Проект: ${filters.project}`);
+    filterProjectEl.classList.add('active');
+  } else {
+    filterProjectEl.classList.remove('active');
+  }
+
+  if (filters.search.trim()) {
+    active.push(`Поиск: ${filters.search}`);
+    filterSearchEl.classList.add('active');
+  } else {
+    filterSearchEl.classList.remove('active');
+  }
+
+  activeFiltersEl.textContent = active.length ? `Активно: ${active.join(' · ')}` : 'Фильтры не заданы';
+}
+
 function renderBoard(tasks) {
+  const filtered = applyFilters(tasks, state.filters);
   boardEl.innerHTML = '';
   statuses.forEach((status) => {
     const template = document.getElementById('column-template');
     const columnEl = template.content.firstElementChild.cloneNode(true);
     columnEl.querySelector('.column-title').textContent = status.label;
 
-    const columnTasks = tasks.filter((t) => t.status === status.id);
+    const columnTasks = filtered.filter((t) => t.status === status.id);
     columnEl.querySelector('.count').textContent = columnTasks.length;
 
     const body = columnEl.querySelector('.column-body');
@@ -93,12 +177,13 @@ function renderBoard(tasks) {
     } else {
       columnTasks
         .sort((a, b) => new Date(a.dueDate || a.createdAt) - new Date(b.dueDate || b.createdAt))
-        .forEach((task) => body.appendChild(createCard(task, handleUpdateStatus)));
+        .forEach((task) => body.appendChild(createCard(task, handleUpdateStatus, handleAddComment)));
     }
 
     boardEl.appendChild(columnEl);
   });
-  renderStats(tasks);
+  renderStats(tasks, filtered);
+  renderActiveFilters(state.filters);
 }
 
 function handleUpdateStatus(taskId, nextStatus) {
@@ -138,9 +223,48 @@ function handleCreateTask(event) {
   formEl.title.focus();
 }
 
+function handleAddComment(taskId, text) {
+  state.tasks = state.tasks.map((task) =>
+    task.id === taskId
+      ? {
+          ...task,
+          comments: [
+            ...task.comments,
+            { id: createId(), taskId, text, createdAt: new Date().toISOString() }
+          ],
+          updatedAt: new Date().toISOString(),
+        }
+      : task
+  );
+  saveTasks(state.tasks);
+  renderBoard(state.tasks);
+}
+
+function handleFilterChange() {
+  state.filters = {
+    status: filterStatusEl.value,
+    project: filterProjectEl.value.trim(),
+    search: filterSearchEl.value.trim(),
+  };
+  renderBoard(state.tasks);
+}
+
+function resetFilters() {
+  filterStatusEl.value = 'all';
+  filterProjectEl.value = '';
+  filterSearchEl.value = '';
+  handleFilterChange();
+}
+
 const state = {
   tasks: loadTasks(),
+  filters: { status: 'all', project: '', search: '' },
 };
 
 formEl.addEventListener('submit', handleCreateTask);
+filterStatusEl.addEventListener('change', handleFilterChange);
+filterProjectEl.addEventListener('input', handleFilterChange);
+filterSearchEl.addEventListener('input', handleFilterChange);
+resetFiltersBtn.addEventListener('click', resetFilters);
+
 renderBoard(state.tasks);

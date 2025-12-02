@@ -39,6 +39,32 @@
     </form>
   </section>
 
+  <section class="filters" id="filters">
+    <h2>Фильтры и поиск</h2>
+    <div class="filter-row">
+      <label>
+        Статус
+        <select id="filterStatus">
+          <option value="all">Все</option>
+          <option value="inbox">Inbox</option>
+          <option value="plan">План</option>
+          <option value="in_progress">В работе</option>
+          <option value="done">Готово</option>
+        </select>
+      </label>
+      <label>
+        Проект
+        <input id="filterProject" placeholder="Название проекта" />
+      </label>
+      <label>
+        Поиск по названию
+        <input id="filterSearch" placeholder="Например: отчет" />
+      </label>
+      <button id="resetFilters" class="ghost" type="button">Сбросить</button>
+    </div>
+    <p class="active-filters" id="activeFilters"></p>
+  </section>
+
   <main class="board" id="board"></main>
 
   <template id="column-template">
@@ -67,6 +93,14 @@
         <span class="chip tags"></span>
       </div>
       <div class="card-actions"></div>
+      <details class="comments">
+        <summary>Комментарии</summary>
+        <ul class="comments-list"></ul>
+        <form class="comment-form">
+          <input name="comment" placeholder="Новый комментарий" />
+          <button type="submit">Добавить</button>
+        </form>
+      </details>
     </article>
   </template>
 
