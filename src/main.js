@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'mini-kanban-tasks-v1';
+const storageNoticeEl = document.getElementById('storageNotice');
 const statuses = [
   { id: 'inbox', label: 'Inbox' },
   { id: 'plan', label: 'План' },
@@ -73,27 +74,54 @@ const seedTasks = [
   },
 ];
 
+function safeStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.warn('localStorage недоступен, перехожу в режим без сохранения', error);
+    return null;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn('Не удалось записать в localStorage', error);
+    return false;
+  }
+}
+
 function loadTasks() {
-  const data = localStorage.getItem(STORAGE_KEY);
+  const data = safeStorageGet(STORAGE_KEY);
   if (!data) return [];
   try {
     const parsed = JSON.parse(data);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.warn('Не удалось прочитать хранилище, очищаю', e);
-    localStorage.removeItem(STORAGE_KEY);
+    safeStorageSet(STORAGE_KEY, '');
     return [];
   }
 }
 
 function saveTasks(tasks) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  const ok = safeStorageSet(STORAGE_KEY, JSON.stringify(tasks));
+  if (!ok) {
+    storageNoticeEl.hidden = false;
+    storageNoticeEl.textContent =
+      'localStorage недоступен. Задачи сохраняются только до перезагрузки страницы.';
+  }
 }
 
 function initTasks() {
   const stored = loadTasks();
   if (stored.length) return stored;
   saveTasks(seedTasks);
+  storageNoticeEl.hidden = false;
+  storageNoticeEl.textContent =
+    'Для быстрого старта добавлены демо-задачи. Если localStorage недоступен, они временные.';
   return seedTasks;
 }
 
