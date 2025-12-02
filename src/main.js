@@ -1,23 +1,15 @@
 const STORAGE_KEY = 'mini-kanban-tasks-v1';
-const storageNoticeEl = document.getElementById('storageNotice');
 const statuses = [
   { id: 'inbox', label: 'Inbox' },
   { id: 'plan', label: 'План' },
   { id: 'in_progress', label: 'В работе' },
   { id: 'done', label: 'Готово' }
 ];
-
 const priorityLabels = { low: 'Низкий', medium: 'Средний', high: 'Высокий' };
 
-const boardEl = document.getElementById('board');
-const formEl = document.getElementById('taskForm');
-const statsEl = document.getElementById('stats');
-const filterStatusEl = document.getElementById('filterStatus');
-const filterProjectEl = document.getElementById('filterProject');
-const filterSearchEl = document.getElementById('filterSearch');
-const resetFiltersBtn = document.getElementById('resetFilters');
-const activeFiltersEl = document.getElementById('activeFilters');
-const emptyMessageEl = document.getElementById('emptyMessage');
+function createId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
 
 const seedTasks = [
   {
@@ -74,6 +66,17 @@ const seedTasks = [
   },
 ];
 
+const storageNoticeEl = document.getElementById('storageNotice');
+const boardEl = document.getElementById('board');
+const formEl = document.getElementById('taskForm');
+const statsEl = document.getElementById('stats');
+const filterStatusEl = document.getElementById('filterStatus');
+const filterProjectEl = document.getElementById('filterProject');
+const filterSearchEl = document.getElementById('filterSearch');
+const resetFiltersBtn = document.getElementById('resetFilters');
+const activeFiltersEl = document.getElementById('activeFilters');
+const emptyMessageEl = document.getElementById('emptyMessage');
+
 function safeStorageGet(key) {
   try {
     return localStorage.getItem(key);
@@ -123,10 +126,6 @@ function initTasks() {
   storageNoticeEl.textContent =
     'Для быстрого старта добавлены демо-задачи. Если localStorage недоступен, они временные.';
   return seedTasks;
-}
-
-function createId() {
-  return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
 function summarize(tasks) {
@@ -356,14 +355,25 @@ function resetFilters() {
 }
 
 const state = {
-  tasks: initTasks(),
+  tasks: [],
   filters: { status: 'all', project: '', search: '' },
 };
 
-formEl.addEventListener('submit', handleCreateTask);
-filterStatusEl.addEventListener('change', handleFilterChange);
-filterProjectEl.addEventListener('input', handleFilterChange);
-filterSearchEl.addEventListener('input', handleFilterChange);
-resetFiltersBtn.addEventListener('click', resetFilters);
+function initBoard() {
+  try {
+    state.tasks = initTasks();
+    formEl.addEventListener('submit', handleCreateTask);
+    filterStatusEl.addEventListener('change', handleFilterChange);
+    filterProjectEl.addEventListener('input', handleFilterChange);
+    filterSearchEl.addEventListener('input', handleFilterChange);
+    resetFiltersBtn.addEventListener('click', resetFilters);
+    renderBoard(state.tasks);
+  } catch (error) {
+    console.error('Не удалось инициализировать доску', error);
+    if (emptyMessageEl) {
+      emptyMessageEl.textContent = 'Не удалось запустить доску. Проверьте, что скрипты загружены.';
+    }
+  }
+}
 
-renderBoard(state.tasks);
+initBoard();
