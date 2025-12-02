@@ -67,6 +67,32 @@
     <p class="active-filters" id="activeFilters"></p>
   </section>
 
+  <section class="storage-tools">
+    <h2>Экспорт / импорт</h2>
+    <div class="tools-grid">
+      <div class="tool-block">
+        <p class="muted">Скачать бэкап задач в JSON.</p>
+        <button id="exportTasks" type="button">Экспортировать JSON</button>
+      </div>
+      <form class="tool-block" id="importForm">
+        <p class="muted">Вставьте JSON с задачами. Выберите режим: заменить всё или слить с текущими.</p>
+        <label class="inline">
+          Режим импорта
+          <select id="importMode" name="mode">
+            <option value="merge">Слить (merge)</option>
+            <option value="replace">Заменить (replace)</option>
+          </select>
+        </label>
+        <textarea id="importInput" name="payload" rows="4" placeholder='[{ "title": "Новая" }]'></textarea>
+        <div class="form-row actions">
+          <button type="submit">Импортировать</button>
+          <button type="reset" class="ghost">Очистить</button>
+        </div>
+        <p class="import-status" id="importStatus"></p>
+      </form>
+    </div>
+  </section>
+
   <p class="empty-message" id="emptyMessage"></p>
 
   <main class="board" id="board"></main>

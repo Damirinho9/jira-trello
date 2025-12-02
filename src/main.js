@@ -76,6 +76,14 @@ const filterSearchEl = document.getElementById('filterSearch');
 const resetFiltersBtn = document.getElementById('resetFilters');
 const activeFiltersEl = document.getElementById('activeFilters');
 const emptyMessageEl = document.getElementById('emptyMessage');
+const exportBtn = document.getElementById('exportTasks');
+const importForm = document.getElementById('importForm');
+const importInputEl = document.getElementById('importInput');
+const importStatusEl = document.getElementById('importStatus');
+const importModeEl = document.getElementById('importMode');
+
+const allowedStatuses = new Set(statuses.map((s) => s.id));
+const allowedPriorities = new Set(['low', 'medium', 'high']);
 
 function safeStorageGet(key) {
   try {
@@ -284,6 +292,99 @@ function renderBoard(tasks) {
   renderActiveFilters(state.filters);
 }
 
+function normalizeComments(comments) {
+  if (!Array.isArray(comments)) return [];
+  return comments
+    .filter((c) => c && typeof c.text === 'string')
+    .map((comment) => ({
+      id: comment.id || createId(),
+      taskId: comment.taskId || '',
+      text: comment.text,
+      createdAt: comment.createdAt || new Date().toISOString(),
+    }));
+}
+
+function normalizeTask(raw) {
+  return {
+    id: raw.id || createId(),
+    title: (raw.title || 'Без названия').toString(),
+    description: raw.description?.toString() || '',
+    status: allowedStatuses.has(raw.status) ? raw.status : 'inbox',
+    priority: allowedPriorities.has(raw.priority) ? raw.priority : 'medium',
+    project: raw.project?.toString().trim() || '',
+    tags: Array.isArray(raw.tags)
+      ? raw.tags.map((tag) => tag.toString().trim()).filter(Boolean)
+      : [],
+    dueDate: raw.dueDate?.toString() || '',
+    comments: normalizeComments(raw.comments),
+    createdAt: raw.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function handleExport() {
+  const data = JSON.stringify(state.tasks, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const dateLabel = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `kanban-tasks-${dateLabel}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function handleImport(event) {
+  event.preventDefault();
+  importStatusEl.textContent = '';
+  const raw = importInputEl.value.trim();
+  if (!raw) {
+    importStatusEl.textContent = 'Нечего импортировать — вставьте JSON.';
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    importStatusEl.textContent = 'Не удалось распарсить JSON. Проверьте синтаксис.';
+    return;
+  }
+
+  if (!Array.isArray(parsed)) {
+    importStatusEl.textContent = 'Ожидался массив задач. Импорт отменён.';
+    return;
+  }
+
+  const normalized = parsed.map(normalizeTask);
+  const mode = importModeEl.value;
+
+  if (mode === 'replace') {
+    state.tasks = normalized;
+  } else {
+    const merged = [...state.tasks];
+    normalized.forEach((task) => {
+      const idx = merged.findIndex((t) => t.id === task.id);
+      if (idx >= 0) {
+        merged[idx] = { ...task };
+      } else {
+        merged.push(task);
+      }
+    });
+    state.tasks = merged;
+  }
+
+  saveTasks(state.tasks);
+  renderBoard(state.tasks);
+  importStatusEl.textContent = `Импорт завершён: ${normalized.length} задач(и).`;
+}
+
+function handleImportReset() {
+  importStatusEl.textContent = '';
+}
+
 function handleUpdateStatus(taskId, nextStatus) {
   state.tasks = state.tasks.map((t) =>
     t.id === taskId ? { ...t, status: nextStatus, updatedAt: new Date().toISOString() } : t
@@ -367,6 +468,9 @@ function initBoard() {
     filterProjectEl.addEventListener('input', handleFilterChange);
     filterSearchEl.addEventListener('input', handleFilterChange);
     resetFiltersBtn.addEventListener('click', resetFilters);
+    exportBtn.addEventListener('click', handleExport);
+    importForm.addEventListener('submit', handleImport);
+    importForm.addEventListener('reset', handleImportReset);
     renderBoard(state.tasks);
   } catch (error) {
     console.error('Не удалось инициализировать доску', error);
