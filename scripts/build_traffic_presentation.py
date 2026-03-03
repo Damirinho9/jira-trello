@@ -18,6 +18,7 @@ import argparse
 import pathlib
 
 import win32com.client  # type: ignore
+from pywintypes import com_error  # type: ignore
 
 
 # RGB helper (PowerPoint expects BGR integer)
@@ -42,6 +43,7 @@ MSO_ANIM_TRIGGER_AFTER_PREVIOUS = 3
 # Effects
 MSO_ANIM_EFFECT_CUSTOM = 0
 MSO_ANIM_EFFECT_SPIN = 61
+MSO_ANIM_EFFECT_CHANGE_FILL_COLOR = 54
 
 # Behavior types
 MSO_ANIM_TYPE_MOTION = 1
@@ -183,9 +185,25 @@ class PresentationBuilder:
 
     def _add_color_emphasis(self, shape, trigger: int, color: int, duration: float, delay: float):
         seq = self.slide.TimeLine.MainSequence
-        effect = seq.AddEffect(shape, MSO_ANIM_EFFECT_CUSTOM, trigger=trigger)
-        behavior = effect.Behaviors.Add(MSO_ANIM_TYPE_COLOR)
-        behavior.ColorEffect.To.RGB = color
+
+        # Preferred path: add a custom effect with color behavior.
+        # Some PowerPoint builds raise `Invalid request` for ColorEffect on custom behavior,
+        # so we gracefully fallback to the built-in ChangeFillColor emphasis effect.
+        try:
+            effect = seq.AddEffect(shape, MSO_ANIM_EFFECT_CUSTOM, trigger=trigger)
+            behavior = effect.Behaviors.Add(MSO_ANIM_TYPE_COLOR)
+            behavior.ColorEffect.To.RGB = color
+        except com_error:
+            effect = seq.AddEffect(shape, MSO_ANIM_EFFECT_CHANGE_FILL_COLOR, trigger=trigger)
+            # Different Office versions expose target color on different properties.
+            # We try known options and then continue even if not writable.
+            for attr in ("Color2", "Color1", "Color"):
+                try:
+                    getattr(effect.EffectParameters, attr).RGB = color
+                    break
+                except Exception:
+                    continue
+
         effect.Timing.Duration = duration
         effect.Timing.TriggerDelayTime = delay
         return effect

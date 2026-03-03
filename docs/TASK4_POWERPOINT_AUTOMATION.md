@@ -32,3 +32,5 @@ python scripts/build_traffic_presentation.py --output task4_traffic.pptx
 ## Примечание
 
 Анимации заданы через COM API PowerPoint (win32). На Linux/macOS без PowerPoint скрипт не запускается.
+
+Скрипт содержит fallback для эффекта смены цвета (разные сборки Office по-разному обрабатывают `ColorEffect`).
