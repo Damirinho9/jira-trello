@@ -15,3 +15,8 @@ A minimal personal kanban board (Jira/Trello style) built for eco-pace coding it
 - If the browser blocks localStorage in file mode, a yellow notice will appear. The board still works, but data will survive only while the tab is open.
 - Add tasks via the “Быстро добавить” form and move them between columns with the status buttons on each card.
 - Export tasks to JSON (кнопка "Экспортировать JSON"), импортируйте бэкап в режиме merge или replace через форму рядом.
+
+
+## PowerPoint assignment automation
+- For the "Задание 4" animation task (car + traffic light), use `scripts/build_traffic_presentation.py`.
+- Full run instructions are in `docs/TASK4_POWERPOINT_AUTOMATION.md`.
