@@ -34,3 +34,17 @@ python scripts/build_traffic_presentation.py --output task4_traffic.pptx
 Анимации заданы через COM API PowerPoint (win32). На Linux/macOS без PowerPoint скрипт не запускается.
 
 Скрипт содержит fallback для эффекта смены цвета (разные сборки Office по-разному обрабатывают `ColorEffect`).
+
+## Проверка готового файла (`.pptx` или `.zip`)
+
+Если файл загружен на сайт как `task4_traffic.zip`, можно проверить его локально:
+
+```bash
+python scripts/validate_task4_submission.py task4_traffic.zip
+```
+
+Для обычного `.pptx`:
+
+```bash
+python scripts/validate_task4_submission.py task4_traffic.pptx
+```
