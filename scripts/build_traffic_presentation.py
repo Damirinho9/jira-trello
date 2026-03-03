@@ -1,315 +1,235 @@
 #!/usr/bin/env python3
-"""Builds the PowerPoint assignment slide (car + traffic light) via Python.
+"""Build task #4 PowerPoint slide using python-pptx + direct XML animation editing.
 
-This script targets Windows + Microsoft PowerPoint using COM automation.
-It creates one slide with:
-- arc road
-- car shape (emoji fallback)
-- traffic light
-- animation timeline approximating table 3.1 from the provided methodical guide
-
-Run (on Windows with PowerPoint installed):
-    python scripts/build_traffic_presentation.py --output task4_traffic.pptx
+The script draws the scene from the methodical guide (vertical arc road, car, traffic
+light) and injects animation timing XML mapped to created shape IDs.
 """
 
 from __future__ import annotations
 
 import argparse
 import pathlib
+import zipfile
+from copy import deepcopy
+from xml.etree import ElementTree as ET
 
-import win32com.client  # type: ignore
-from pywintypes import com_error  # type: ignore
+from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
+from pptx.util import Emu, Pt
 
+P_NAMESPACE = "http://schemas.openxmlformats.org/presentationml/2006/main"
+NS = {"p": P_NAMESPACE}
 
-# RGB helper (PowerPoint expects BGR integer)
-def rgb(r: int, g: int, b: int) -> int:
-    return r + (g << 8) + (b << 16)
+# Shape IDs used in bundled template animation timeline (task4_traffic.pptx).
+TEMPLATE_SHAPE_IDS = {
+    "car": "7",
+    "red": "10",
+    "yellow": "11",
+    "green": "12",
+}
 
-
-# Office / PowerPoint constants (numeric, to avoid makepy dependency)
-MSO_TRUE = -1
-MSO_FALSE = 0
-
-PP_LAYOUT_BLANK = 12
-
-MSO_SHAPE_RECTANGLE = 1
-MSO_SHAPE_OVAL = 9
-MSO_SHAPE_ARC = 25
-
-# Triggers
-MSO_ANIM_TRIGGER_WITH_PREVIOUS = 2
-MSO_ANIM_TRIGGER_AFTER_PREVIOUS = 3
-
-# Effects
-MSO_ANIM_EFFECT_CUSTOM = 0
-MSO_ANIM_EFFECT_SPIN = 61
-MSO_ANIM_EFFECT_CHANGE_FILL_COLOR = 54
-
-# Behavior types
-MSO_ANIM_TYPE_MOTION = 1
-MSO_ANIM_TYPE_COLOR = 3
+# Motion paths updated to match the vertical trajectory from the textbook.
+MOTION_PATHS = (
+    "M 0 0 C -0.03 0.18 -0.08 0.42 -0.13 0.58",
+    "M 0 0 C -0.04 0.14 -0.09 0.28 -0.13 0.42",
+)
 
 
 class PresentationBuilder:
-    def __init__(self, output_path: pathlib.Path) -> None:
+    def __init__(self, output_path: pathlib.Path, timing_template: pathlib.Path) -> None:
         self.output_path = output_path
-        self.app = None
-        self.presentation = None
-        self.slide = None
+        self.timing_template = timing_template
 
     def build(self) -> None:
-        self.app = win32com.client.Dispatch("PowerPoint.Application")
-        self.app.Visible = MSO_TRUE
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
 
-        self.presentation = self.app.Presentations.Add()
-        self.slide = self.presentation.Slides.Add(1, PP_LAYOUT_BLANK)
+        scene = self._draw_scene(slide, prs.slide_width, prs.slide_height)
+        self._inject_timing_xml(slide, scene)
 
-        slide_w = self.presentation.PageSetup.SlideWidth
-        slide_h = self.presentation.PageSetup.SlideHeight
+        prs.save(self.output_path)
 
-        scene = self._draw_scene(slide_w, slide_h)
-        self._configure_animation(scene)
-
-        self.presentation.SaveAs(str(self.output_path.resolve()))
-        self.presentation.Close()
-        self.app.Quit()
-
-    def _draw_scene(self, slide_w: float, slide_h: float) -> dict[str, object]:
-        # Road (arc)
-        road = self.slide.Shapes.AddShape(
-            MSO_SHAPE_ARC,
-            slide_w * 0.04,
-            slide_h * 0.18,
-            slide_w * 0.90,
-            slide_h * 0.80,
+    def _draw_scene(self, slide, slide_w: Emu, slide_h: Emu) -> dict[str, object]:
+        # Vertical arc road (as in методичка: path from top to bottom, curved left).
+        road = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.ARC,
+            int(slide_w * 0.12),
+            int(slide_h * 0.05),
+            int(slide_w * 0.58),
+            int(slide_h * 0.9),
         )
-        road.Fill.Visible = MSO_FALSE
-        road.Line.Visible = MSO_TRUE
-        road.Line.ForeColor.RGB = rgb(90, 90, 90)
-        road.Line.Weight = 70
+        road.fill.background()
+        road.line.color.rgb = RGBColor(95, 95, 95)
+        road.line.width = Pt(38)
+        road.rotation = 92
 
-        # Car body (simple rounded rectangle + wheels)
-        car_group = self._draw_car(slide_w, slide_h)
-
-        # Traffic light (pole + lights)
-        traffic = self._draw_traffic_light(slide_w, slide_h)
+        car = self._draw_car(slide, slide_w, slide_h)
+        traffic = self._draw_traffic_light(slide, slide_w, slide_h)
 
         return {
             "road": road,
-            "car": car_group,
+            "car": car,
             "red": traffic["red"],
             "yellow": traffic["yellow"],
             "green": traffic["green"],
         }
 
-    def _draw_car(self, slide_w: float, slide_h: float):
-        body = self.slide.Shapes.AddShape(
-            MSO_SHAPE_RECTANGLE,
-            slide_w * 0.11,
-            slide_h * 0.24,
-            120,
-            44,
+    def _draw_car(self, slide, slide_w: Emu, slide_h: Emu):
+        body = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+            int(slide_w * 0.16),
+            int(slide_h * 0.10),
+            int(slide_w * 0.16),
+            int(slide_h * 0.065),
         )
-        body.Fill.ForeColor.RGB = rgb(35, 35, 35)
-        body.Line.Visible = MSO_FALSE
+        body.fill.solid()
+        body.fill.fore_color.rgb = RGBColor(35, 35, 35)
+        body.line.fill.background()
 
-        roof = self.slide.Shapes.AddShape(
-            MSO_SHAPE_RECTANGLE,
-            slide_w * 0.145,
-            slide_h * 0.205,
-            70,
-            24,
+        roof = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+            int(slide_w * 0.19),
+            int(slide_h * 0.075),
+            int(slide_w * 0.095),
+            int(slide_h * 0.04),
         )
-        roof.Fill.ForeColor.RGB = rgb(45, 45, 45)
-        roof.Line.Visible = MSO_FALSE
+        roof.fill.solid()
+        roof.fill.fore_color.rgb = RGBColor(55, 55, 55)
+        roof.line.fill.background()
 
-        wheel1 = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.125, slide_h * 0.29, 24, 24)
-        wheel2 = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.215, slide_h * 0.29, 24, 24)
-        for wheel in (wheel1, wheel2):
-            wheel.Fill.ForeColor.RGB = rgb(10, 10, 10)
-            wheel.Line.Visible = MSO_FALSE
+        wheel_l = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.OVAL,
+            int(slide_w * 0.18),
+            int(slide_h * 0.145),
+            int(slide_w * 0.035),
+            int(slide_w * 0.035),
+        )
+        wheel_r = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.OVAL,
+            int(slide_w * 0.255),
+            int(slide_h * 0.145),
+            int(slide_w * 0.035),
+            int(slide_w * 0.035),
+        )
+        for wheel in (wheel_l, wheel_r):
+            wheel.fill.solid()
+            wheel.fill.fore_color.rgb = RGBColor(10, 10, 10)
+            wheel.line.fill.background()
 
-        group_range = self.slide.Shapes.Range([body.Name, roof.Name, wheel1.Name, wheel2.Name])
-        car = group_range.Group()
-        car.Rotation = 8
+        car = slide.shapes.add_group_shape([body, roof, wheel_l, wheel_r])
+        car.rotation = -18
         return car
 
-    def _draw_traffic_light(self, slide_w: float, slide_h: float) -> dict[str, object]:
-        pole = self.slide.Shapes.AddShape(
-            MSO_SHAPE_RECTANGLE,
-            slide_w * 0.74,
-            slide_h * 0.28,
-            12,
-            210,
+    def _draw_traffic_light(self, slide, slide_w: Emu, slide_h: Emu) -> dict[str, object]:
+        pole = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+            int(slide_w * 0.67),
+            int(slide_h * 0.28),
+            int(slide_w * 0.012),
+            int(slide_h * 0.44),
         )
-        pole.Fill.ForeColor.RGB = rgb(30, 30, 30)
-        pole.Line.Visible = MSO_FALSE
+        pole.fill.solid()
+        pole.fill.fore_color.rgb = RGBColor(35, 35, 35)
+        pole.line.fill.background()
 
-        housing = self.slide.Shapes.AddShape(
-            MSO_SHAPE_RECTANGLE,
-            slide_w * 0.705,
-            slide_h * 0.24,
-            82,
-            170,
+        housing = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE,
+            int(slide_w * 0.63),
+            int(slide_h * 0.22),
+            int(slide_w * 0.09),
+            int(slide_h * 0.24),
         )
-        housing.Fill.ForeColor.RGB = rgb(55, 55, 55)
-        housing.Line.Visible = MSO_FALSE
+        housing.fill.solid()
+        housing.fill.fore_color.rgb = RGBColor(60, 60, 60)
+        housing.line.fill.background()
 
-        red = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.725, slide_h * 0.255, 42, 42)
-        yellow = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.725, slide_h * 0.315, 42, 42)
-        green = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.725, slide_h * 0.375, 42, 42)
+        red = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.OVAL,
+            int(slide_w * 0.648),
+            int(slide_h * 0.245),
+            int(slide_w * 0.048),
+            int(slide_w * 0.048),
+        )
+        yellow = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.OVAL,
+            int(slide_w * 0.648),
+            int(slide_h * 0.31),
+            int(slide_w * 0.048),
+            int(slide_w * 0.048),
+        )
+        green = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.OVAL,
+            int(slide_w * 0.648),
+            int(slide_h * 0.375),
+            int(slide_w * 0.048),
+            int(slide_w * 0.048),
+        )
 
-        base = rgb(85, 85, 85)
         for lamp in (red, yellow, green):
-            lamp.Fill.ForeColor.RGB = base
-            lamp.Line.Visible = MSO_FALSE
+            lamp.fill.solid()
+            lamp.fill.fore_color.rgb = RGBColor(85, 85, 85)
+            lamp.line.fill.background()
 
         return {"pole": pole, "housing": housing, "red": red, "yellow": yellow, "green": green}
 
-    def _add_motion_path(self, shape, trigger: int, duration: float, delay: float, path: str):
-        seq = self.slide.TimeLine.MainSequence
-        effect = seq.AddEffect(shape, MSO_ANIM_EFFECT_CUSTOM, trigger=trigger)
-        behavior = effect.Behaviors.Add(MSO_ANIM_TYPE_MOTION)
-        behavior.MotionEffect.Path = path
-        effect.Timing.Duration = duration
-        effect.Timing.TriggerDelayTime = delay
-        return effect
+    def _inject_timing_xml(self, slide, scene: dict[str, object]) -> None:
+        timing = self._load_template_timing()
 
-    def _add_spin(self, shape, trigger: int, degrees: float, duration: float, delay: float):
-        seq = self.slide.TimeLine.MainSequence
-        effect = seq.AddEffect(shape, MSO_ANIM_EFFECT_SPIN, trigger=trigger)
-        effect.EffectParameters.Amount = degrees
-        effect.Timing.Duration = duration
-        effect.Timing.TriggerDelayTime = delay
-        return effect
+        new_ids = {
+            "car": str(scene["car"].shape_id),
+            "red": str(scene["red"].shape_id),
+            "yellow": str(scene["yellow"].shape_id),
+            "green": str(scene["green"].shape_id),
+        }
 
-    def _add_color_emphasis(self, shape, trigger: int, color: int, duration: float, delay: float):
-        seq = self.slide.TimeLine.MainSequence
+        for sp_tgt in timing.findall(".//p:spTgt", NS):
+            old = sp_tgt.attrib.get("spid")
+            for key, old_id in TEMPLATE_SHAPE_IDS.items():
+                if old == old_id:
+                    sp_tgt.set("spid", new_ids[key])
 
-        # Preferred path: add a custom effect with color behavior.
-        # Some PowerPoint builds raise `Invalid request` for ColorEffect on custom behavior,
-        # so we gracefully fallback to the built-in ChangeFillColor emphasis effect.
-        try:
-            effect = seq.AddEffect(shape, MSO_ANIM_EFFECT_CUSTOM, trigger=trigger)
-            behavior = effect.Behaviors.Add(MSO_ANIM_TYPE_COLOR)
-            behavior.ColorEffect.To.RGB = color
-        except com_error:
-            effect = seq.AddEffect(shape, MSO_ANIM_EFFECT_CHANGE_FILL_COLOR, trigger=trigger)
-            # Different Office versions expose target color on different properties.
-            # We try known options and then continue even if not writable.
-            for attr in ("Color2", "Color1", "Color"):
-                try:
-                    getattr(effect.EffectParameters, attr).RGB = color
-                    break
-                except Exception:
-                    continue
+        motion_nodes = timing.findall(".//p:animMotion", NS)
+        if len(motion_nodes) >= 2:
+            motion_nodes[0].set("path", MOTION_PATHS[0])
+            motion_nodes[1].set("path", MOTION_PATHS[1])
 
-        effect.Timing.Duration = duration
-        effect.Timing.TriggerDelayTime = delay
-        return effect
+        slide._element.append(timing)
 
-    def _configure_animation(self, scene: dict[str, object]) -> None:
-        car = scene["car"]
-        red = scene["red"]
-        yellow = scene["yellow"]
-        green = scene["green"]
+    def _load_template_timing(self):
+        with zipfile.ZipFile(self.timing_template) as zf:
+            xml = zf.read("ppt/slides/slide1.xml")
 
-        # 1) Car first motion path (approach traffic light)
-        self._add_motion_path(
-            car,
-            trigger=MSO_ANIM_TRIGGER_AFTER_PREVIOUS,
-            duration=2.0,
-            delay=0.0,
-            path="M 0 0 C 0.15 0.07 0.34 0.20 0.53 0.30",
-        )
+        root = ET.fromstring(xml)
+        timing = root.find("p:timing", NS)
+        if timing is None:
+            raise RuntimeError(f"No <p:timing> section found in template: {self.timing_template}")
 
-        # 2) Car rotation 17° (clockwise)
-        self._add_spin(
-            car,
-            trigger=MSO_ANIM_TRIGGER_WITH_PREVIOUS,
-            degrees=17,
-            duration=1.5,
-            delay=0.1,
-        )
-
-        # 3) Red ON
-        self._add_color_emphasis(
-            red,
-            trigger=MSO_ANIM_TRIGGER_WITH_PREVIOUS,
-            color=rgb(220, 35, 35),
-            duration=0.4,
-            delay=1.0,
-        )
-
-        # 4) Red OFF
-        self._add_color_emphasis(
-            red,
-            trigger=MSO_ANIM_TRIGGER_AFTER_PREVIOUS,
-            color=rgb(85, 85, 85),
-            duration=0.4,
-            delay=0.0,
-        )
-
-        # 5) Yellow ON
-        self._add_color_emphasis(
-            yellow,
-            trigger=MSO_ANIM_TRIGGER_WITH_PREVIOUS,
-            color=rgb(230, 190, 40),
-            duration=0.4,
-            delay=0.0,
-        )
-
-        # 6) Yellow OFF
-        self._add_color_emphasis(
-            yellow,
-            trigger=MSO_ANIM_TRIGGER_AFTER_PREVIOUS,
-            color=rgb(85, 85, 85),
-            duration=0.4,
-            delay=0.0,
-        )
-
-        # 7) Green ON
-        self._add_color_emphasis(
-            green,
-            trigger=MSO_ANIM_TRIGGER_WITH_PREVIOUS,
-            color=rgb(40, 180, 75),
-            duration=0.4,
-            delay=1.0,
-        )
-
-        # 8) Car second motion path (continue after green)
-        self._add_motion_path(
-            car,
-            trigger=MSO_ANIM_TRIGGER_WITH_PREVIOUS,
-            duration=1.2,
-            delay=0.5,
-            path="M 0 0 C 0.12 0.06 0.27 0.13 0.42 0.18",
-        )
-
-        # 9) Car final rotation 25°
-        self._add_spin(
-            car,
-            trigger=MSO_ANIM_TRIGGER_WITH_PREVIOUS,
-            degrees=25,
-            duration=1.5,
-            delay=0.1,
-        )
+        return deepcopy(timing)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build task #4 traffic animation PPTX")
+    parser = argparse.ArgumentParser(
+        description="Build task #4 traffic animation PPTX using python-pptx + XML timing"
+    )
     parser.add_argument(
         "--output",
         type=pathlib.Path,
         default=pathlib.Path("task4_traffic.pptx"),
         help="Output pptx file path",
     )
+    parser.add_argument(
+        "--timing-template",
+        type=pathlib.Path,
+        default=pathlib.Path("task4_traffic.pptx"),
+        help="PPTX file used only as timing XML template",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    builder = PresentationBuilder(args.output)
+    builder = PresentationBuilder(args.output, args.timing_template)
     builder.build()
     print(f"Presentation saved to: {args.output}")
 

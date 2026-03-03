@@ -1,24 +1,22 @@
 # Задание 4 (автомобиль + светофор) — автоматизация через Python
 
-Скрипт `scripts/build_traffic_presentation.py` автоматически собирает презентацию по методичке:
+Скрипт `scripts/build_traffic_presentation.py` собирает презентацию по методичке:
 
 - 1 слайд (пустой)
-- дуговая трасса
-- автомобиль (простая векторная фигура)
+- вертикальная дуговая трасса (ориентация как на рис. 3.11)
+- автомобиль (векторные фигуры)
 - светофор из фигур
-- 9 эффектов анимации (движение, повороты, смена цветов)
+- 9 эффектов анимации (пути перемещения, повороты, смена цветов)
 
 ## Требования
 
-- Windows
-- Microsoft PowerPoint
 - Python 3.10+
-- пакет `pywin32`
+- пакет `python-pptx`
 
 ## Установка
 
 ```bash
-pip install pywin32
+pip install python-pptx
 ```
 
 ## Запуск
@@ -27,13 +25,15 @@ pip install pywin32
 python scripts/build_traffic_presentation.py --output task4_traffic.pptx
 ```
 
-После запуска будет создан файл `task4_traffic.pptx`.
+По умолчанию скрипт использует `task4_traffic.pptx` как источник шаблона таймингов
+(берётся только XML-блок `<p:timing>`, затем подставляются ID созданных фигур и новые
+вертикальные траектории движения).
 
-## Примечание
+При необходимости можно явно указать шаблон:
 
-Анимации заданы через COM API PowerPoint (win32). На Linux/macOS без PowerPoint скрипт не запускается.
-
-Скрипт содержит fallback для эффекта смены цвета (разные сборки Office по-разному обрабатывают `ColorEffect`).
+```bash
+python scripts/build_traffic_presentation.py --output task4_traffic.pptx --timing-template task4_traffic.pptx
+```
 
 ## Проверка готового файла (`.pptx` или `.zip`)
 
