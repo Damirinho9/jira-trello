@@ -75,18 +75,22 @@ class PresentationBuilder:
         self.app.Quit()
 
     def _draw_scene(self, slide_w: float, slide_h: float) -> dict[str, object]:
-        # Road (arc)
+        # Road (arc) per методичка (рис. 3.12):
+        # - oversized arc so edges go out of slide bounds
+        # - thick dark-gray contour
+        # - slight rotation to match the reference layout
         road = self.slide.Shapes.AddShape(
             MSO_SHAPE_ARC,
-            slide_w * 0.04,
-            slide_h * 0.18,
-            slide_w * 0.90,
-            slide_h * 0.80,
+            slide_w * -0.05,
+            slide_h * 0.34,
+            slide_w * 1.10,
+            slide_h * 0.84,
         )
         road.Fill.Visible = MSO_FALSE
         road.Line.Visible = MSO_TRUE
-        road.Line.ForeColor.RGB = rgb(90, 90, 90)
+        road.Line.ForeColor.RGB = rgb(96, 96, 96)
         road.Line.Weight = 70
+        road.Rotation = -8
 
         # Car body (simple rounded rectangle + wheels)
         car_group = self._draw_car(slide_w, slide_h)
@@ -105,8 +109,8 @@ class PresentationBuilder:
     def _draw_car(self, slide_w: float, slide_h: float):
         body = self.slide.Shapes.AddShape(
             MSO_SHAPE_RECTANGLE,
-            slide_w * 0.11,
-            slide_h * 0.24,
+            slide_w * 0.085,
+            slide_h * 0.66,
             120,
             44,
         )
@@ -115,30 +119,30 @@ class PresentationBuilder:
 
         roof = self.slide.Shapes.AddShape(
             MSO_SHAPE_RECTANGLE,
-            slide_w * 0.145,
-            slide_h * 0.205,
+            slide_w * 0.12,
+            slide_h * 0.625,
             70,
             24,
         )
         roof.Fill.ForeColor.RGB = rgb(45, 45, 45)
         roof.Line.Visible = MSO_FALSE
 
-        wheel1 = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.125, slide_h * 0.29, 24, 24)
-        wheel2 = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.215, slide_h * 0.29, 24, 24)
+        wheel1 = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.10, slide_h * 0.71, 24, 24)
+        wheel2 = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.19, slide_h * 0.71, 24, 24)
         for wheel in (wheel1, wheel2):
             wheel.Fill.ForeColor.RGB = rgb(10, 10, 10)
             wheel.Line.Visible = MSO_FALSE
 
         group_range = self.slide.Shapes.Range([body.Name, roof.Name, wheel1.Name, wheel2.Name])
         car = group_range.Group()
-        car.Rotation = 8
+        car.Rotation = -13
         return car
 
     def _draw_traffic_light(self, slide_w: float, slide_h: float) -> dict[str, object]:
         pole = self.slide.Shapes.AddShape(
             MSO_SHAPE_RECTANGLE,
-            slide_w * 0.74,
-            slide_h * 0.28,
+            slide_w * 0.71,
+            slide_h * 0.36,
             12,
             210,
         )
@@ -147,17 +151,17 @@ class PresentationBuilder:
 
         housing = self.slide.Shapes.AddShape(
             MSO_SHAPE_RECTANGLE,
-            slide_w * 0.705,
-            slide_h * 0.24,
+            slide_w * 0.675,
+            slide_h * 0.325,
             82,
             170,
         )
         housing.Fill.ForeColor.RGB = rgb(55, 55, 55)
         housing.Line.Visible = MSO_FALSE
 
-        red = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.725, slide_h * 0.255, 42, 42)
-        yellow = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.725, slide_h * 0.315, 42, 42)
-        green = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.725, slide_h * 0.375, 42, 42)
+        red = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.695, slide_h * 0.34, 42, 42)
+        yellow = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.695, slide_h * 0.40, 42, 42)
+        green = self.slide.Shapes.AddShape(MSO_SHAPE_OVAL, slide_w * 0.695, slide_h * 0.46, 42, 42)
 
         base = rgb(85, 85, 85)
         for lamp in (red, yellow, green):
@@ -220,7 +224,7 @@ class PresentationBuilder:
             trigger=MSO_ANIM_TRIGGER_AFTER_PREVIOUS,
             duration=2.0,
             delay=0.0,
-            path="M 0 0 C 0.15 0.07 0.34 0.20 0.53 0.30",
+            path="M 0 0 C 0.20 -0.10 0.43 -0.15 0.58 -0.15",
         )
 
         # 2) Car rotation 17° (clockwise)
@@ -283,7 +287,7 @@ class PresentationBuilder:
             trigger=MSO_ANIM_TRIGGER_WITH_PREVIOUS,
             duration=1.2,
             delay=0.5,
-            path="M 0 0 C 0.12 0.06 0.27 0.13 0.42 0.18",
+            path="M 0 0 C 0.12 0.00 0.24 -0.05 0.37 -0.10",
         )
 
         # 9) Car final rotation 25°
